@@ -1,7 +1,10 @@
+/*global google*/
+
 import React, { Component } from "react";
 import { connect } from "react-redux";
 import { reduxForm, Field } from "redux-form";
 import { Segment, Form, Button, Grid, Header } from "semantic-ui-react";
+import { geocodeByAddress, getLatLng } from "react-places-autocomplete";
 
 import { createEvent, updateEvent } from "../eventActions";
 import cuid from "cuid";
@@ -15,6 +18,7 @@ import {
   hasLengthGreaterThan,
 } from "revalidate";
 import DateInput from "../../../app/common/form/DateInput";
+import PlaceInput from "../../../app/common/form/PlaceInput";
 
 const mapState = (state, ownProps) => {
   const eventId = ownProps.match.params.id;
@@ -34,16 +38,18 @@ const actions = {
 };
 
 const validate = combineValidators({
-  title: isRequired({message:'The Event Title is Required'}),
-  category: isRequired({message:'The Category is Required'}),
+  title: isRequired({ message: "The Event Title is Required" }),
+  category: isRequired({ message: "The Category is Required" }),
   description: composeValidators(
-    isRequired({message:"Please enter a description"}),
-    hasLengthGreaterThan(9)({message: "Description needs to be atleast 10 characters"})
+    isRequired({ message: "Please enter a description" }),
+    hasLengthGreaterThan(9)({
+      message: "Description needs to be atleast 10 characters",
+    })
   )(),
-  city: isRequired('city'),
-  venue: isRequired('venue'),
-  date: isRequired('date')
-})
+  city: isRequired("city"),
+  venue: isRequired("venue"),
+  date: isRequired("date"),
+});
 
 const category = [
   { key: "drinks", text: "Drinks", value: "drinks" },
@@ -55,7 +61,12 @@ const category = [
 ];
 
 class EventForm extends Component {
+  state = {
+    cityLatLng: {},
+    venueLatLng: {},
+  };
   onFormSubmmit = (values) => {
+    values.venueLatLng = this.state.venueLatLng;
     if (this.props.initialValues.id) {
       this.props.updateEvent(values);
       this.props.history.push(`/events/${this.props.initialValues.id}`);
@@ -71,8 +82,40 @@ class EventForm extends Component {
     }
   };
 
+  handleCitySelect = (selectedCity) => {
+    geocodeByAddress(selectedCity)
+      .then((results) => getLatLng(results[0]))
+      .then((latlng) => {
+        this.setState({
+          cityLatLng: latlng,
+        });
+      })
+      .then(() => {
+        this.props.change("city", selectedCity);
+      });
+  };
+
+  handleVenueSelect = (selectedVenue) => {
+    geocodeByAddress(selectedVenue)
+      .then((results) => getLatLng(results[0]))
+      .then((latlng) => {
+        this.setState({
+          venueLatLng: latlng,
+        });
+      })
+      .then(() => {
+        this.props.change("venue", selectedVenue);
+      });
+  };
+
   render() {
-    const { history, initialValues, invalid, submitting, pristine } = this.props;
+    const {
+      history,
+      initialValues,
+      invalid,
+      submitting,
+      pristine,
+    } = this.props;
     return (
       <Grid>
         <Grid.Column width={10}>
@@ -103,24 +146,36 @@ class EventForm extends Component {
               <Header sub color="teal" content="Event Location Details" />
               <Field
                 name="city"
-                component={TextInput}
-                placeholder="Event City"
+                component={PlaceInput}
+                options={{ types: ["(cities)"] }}
+                onSelect={this.handleCitySelect}
+                placeholder="Event city"
               />
               <Field
                 name="venue"
-                component={TextInput}
-                placeholder="Event Venue"
+                component={PlaceInput}
+                options={{
+                  location: new google.maps.LatLng(this.state.cityLatLng),
+                  radius: 1000,
+                  types: ["establishment"],
+                }}
+                onSelect={this.handleVenueSelect}
+                placeholder="Event venue"
               />
               <Field
                 name="date"
                 component={DateInput}
                 placeholder="Event Date"
-                dateFormat='dd LLL yyyy h:mm a'
+                dateFormat="dd LLL yyyy h:mm a"
                 showTimeSelect
-                timeFormat='HH:mm'
+                timeFormat="HH:mm"
               />
 
-              <Button disabled={invalid || submitting || pristine} positive type="submit">
+              <Button
+                disabled={invalid || submitting || pristine}
+                positive
+                type="submit"
+              >
                 Submit
               </Button>
               <Button
